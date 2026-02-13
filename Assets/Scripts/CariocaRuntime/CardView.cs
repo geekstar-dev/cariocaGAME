@@ -1,0 +1,133 @@
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
+
+namespace CariocaRuntime
+{
+    [DisallowMultipleComponent]
+    public sealed class CardView : MonoBehaviour
+    {
+        [Header("UI refs (optional)")]
+        [SerializeField] private TextMeshProUGUI label;
+        [SerializeField] private Image background;
+        [SerializeField] private GameObject glow;
+
+        private RectTransform _rt;
+        private CanvasGroup _cg;
+        private Vector2 _homePos;
+
+        private Card _card;
+        private System.Action<CardView> _onClick;
+
+        private CardDragHandler _drag;
+
+        private void Awake()
+        {
+            _rt = GetComponent<RectTransform>();
+            _cg = GetComponent<CanvasGroup>();
+            if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
+
+            _drag = GetComponent<CardDragHandler>();
+            if (_drag == null) _drag = gameObject.AddComponent<CardDragHandler>();
+
+            _drag.OnBegin += HandleBeginDrag;
+            _drag.OnDragDelta += HandleDragDelta;
+            _drag.OnEnd += HandleEndDrag;
+
+            _homePos = _rt.anchoredPosition;
+
+            var btn = GetComponent<Button>();
+            if (btn == null) btn = gameObject.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.RemoveAllListeners();
+            btn.onClick.AddListener(() => _onClick?.Invoke(this));
+        }
+
+        public Card Card => _card;
+
+        public void Bind(Card card, System.Action<CardView> onClick, bool selected, bool hint)
+        {
+            _card = card;
+            _onClick = onClick;
+
+            if (label != null)
+                label.text = card.IsJoker ? "JOKER" : card.ToString();
+
+            SetSelected(selected);
+            SetHint(hint);
+
+            if (_rt != null) _homePos = _rt.anchoredPosition;
+        }
+
+        public void SetSelected(bool selected)
+        {
+            if (_rt != null)
+                _rt.localScale = selected ? Vector3.one * 1.08f : Vector3.one;
+        }
+
+        public void SetHint(bool on)
+        {
+            if (glow != null) glow.SetActive(on);
+        }
+
+        private void HandleBeginDrag()
+        {
+            if (_cg != null) _cg.blocksRaycasts = false;
+        }
+
+        private void HandleDragDelta(Vector2 delta)
+        {
+            if (_rt != null) _rt.anchoredPosition += delta;
+        }
+
+        private void HandleEndDrag(PointerEventData eventData)
+        {
+            if (_cg != null) _cg.blocksRaycasts = true;
+
+            var zones = RaycastDropZones(eventData);
+            if (zones.Count == 0)
+            {
+                SnapHome();
+                return;
+            }
+
+            var dz = zones.Find(z => z.zoneType == DropZone.ZoneType.Discard) ?? zones[0];
+            CariocaDragBus.LastDrop = new CariocaDragBus.DropInfo { view = this, zone = dz };
+            SnapHome();
+        }
+
+        private void SnapHome()
+        {
+            if (_rt != null) _rt.anchoredPosition = _homePos;
+        }
+
+        private static List<DropZone> RaycastDropZones(PointerEventData eventData)
+        {
+            var results = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(eventData, results);
+
+            var zones = new List<DropZone>();
+            foreach (var r in results)
+            {
+                var dz = r.gameObject.GetComponentInParent<DropZone>();
+                if (dz != null && !zones.Contains(dz))
+                    zones.Add(dz);
+            }
+            return zones;
+        }
+    }
+
+    public static class CariocaDragBus
+    {
+        public struct DropInfo
+        {
+            public CardView view;
+            public DropZone zone;
+        }
+
+        public static DropInfo? LastDrop;
+        public static void Clear() => LastDrop = null;
+    }
+}

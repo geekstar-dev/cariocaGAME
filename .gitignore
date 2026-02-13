@@ -1,0 +1,17 @@
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+UserSettings/
+MemoryCaptures/
+
+# Rider / VS / VSCode
+.vs/
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

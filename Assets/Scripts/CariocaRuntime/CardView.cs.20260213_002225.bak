@@ -1,0 +1,78 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace CariocaRuntime
+{
+    [RequireComponent(typeof(Button))]
+    public sealed class CardView : MonoBehaviour
+    {
+        [SerializeField] private TextMeshProUGUI label;
+        [SerializeField] private Image background;
+
+        public Card Card { get; private set; }
+        public bool Selected { get; private set; }
+
+        public void Bind(Card card, System.Action<CardView> onClick, bool selected)
+        {
+            Card = card;
+            Selected = selected;
+
+            if (label == null) label = GetComponentInChildren<TextMeshProUGUI>(true);
+            if (background == null) background = GetComponent<Image>();
+
+            label.text = Format(card);
+            ApplySelectedStyle();
+
+            var btn = GetComponent<Button>();
+            btn.onClick.RemoveAllListeners();
+            btn.onClick.AddListener(() => onClick?.Invoke(this));
+        }
+
+        public void SetSelected(bool value)
+        {
+            Selected = value;
+            ApplySelectedStyle();
+        }
+
+        private void ApplySelectedStyle()
+        {
+            if (background == null) return;
+            background.color = Selected ? new Color(1f, 0.95f, 0.65f, 0.98f) : new Color(1f, 1f, 1f, 0.95f);
+        }
+
+        private static string Format(Card c)
+        {
+            if (c.IsJoker) return "JOKER";
+
+            string r = c.Rank switch
+            {
+                Rank.Ace => "A",
+                Rank.Jack => "J",
+                Rank.Queen => "Q",
+                Rank.King => "K",
+                Rank.Ten => "10",
+                Rank.Nine => "9",
+                Rank.Eight => "8",
+                Rank.Seven => "7",
+                Rank.Six => "6",
+                Rank.Five => "5",
+                Rank.Four => "4",
+                Rank.Three => "3",
+                Rank.Two => "2",
+                _ => ((int)c.Rank).ToString()
+            };
+
+            string s = c.Suit switch
+            {
+                Suit.Spades => "♠",
+                Suit.Hearts => "♥",
+                Suit.Diamonds => "♦",
+                Suit.Clubs => "♣",
+                _ => "?"
+            };
+
+            return r + s;
+        }
+    }
+}
