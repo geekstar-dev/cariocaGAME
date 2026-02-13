@@ -47,7 +47,7 @@ namespace CariocaRuntime
             btn.onClick.AddListener(() => _onClick?.Invoke(this));
         }
 
-        // ✅ Compatibilidad total (2/3/4 params)
+        // Compatibilidad (2/3/4 parámetros)
         public void Bind(Card card, Action<CardView> onClick) => Bind(card, onClick, false, false);
         public void Bind(Card card, Action<CardView> onClick, bool selected) => Bind(card, onClick, selected, false);
 
@@ -57,7 +57,7 @@ namespace CariocaRuntime
             _onClick = onClick;
 
             if (label != null)
-                label.text = card.IsJoker ? "JOKER" : card.ToString();
+                label.text = card.ToString();
 
             SetSelected(selected);
             SetHint(hint);

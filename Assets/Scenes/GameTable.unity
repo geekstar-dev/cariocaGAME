@@ -322,7 +322,7 @@ MonoBehaviour:
   discardButton: {fileID: 938213734}
   handLayout: {fileID: 1091994202}
   cardPrefab: {fileID: 998713375380916716, guid: 6c70a17c91b264144b346992d5902ff2, type: 3}
-  bankLayout: {fileID: 1258111721}
+  bankLayout: {fileID: 952861197}
   dropButton: {fileID: 504479449}
   addButton: {fileID: 1409541947}
   sortButton: {fileID: 1393147871}
@@ -1085,6 +1085,7 @@ GameObject:
   - component: {fileID: 952861197}
   - component: {fileID: 952861199}
   - component: {fileID: 952861198}
+  - component: {fileID: 952861200}
   m_Layer: 0
   m_Name: BankTitle
   m_TagString: Untagged
@@ -1211,6 +1212,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 952861196}
   m_CullTransparentMesh: 1
+--- !u!114 &952861200
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 952861196}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a4434c237e54134d9ae0b689385e418, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CariocaRuntime.DropZone
+  zoneType: 1
 --- !u!1 &1046761545
 GameObject:
   m_ObjectHideFlags: 0
