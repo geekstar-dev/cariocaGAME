@@ -327,7 +327,6 @@ MonoBehaviour:
   addButton: {fileID: 1409541947}
   sortButton: {fileID: 1393147871}
   roundLabel: {fileID: 0}
-  currentRound: 1
 --- !u!1 &504479445
 GameObject:
   m_ObjectHideFlags: 0
@@ -689,6 +688,7 @@ GameObject:
   - component: {fileID: 733967575}
   - component: {fileID: 733967577}
   - component: {fileID: 733967576}
+  - component: {fileID: 733967578}
   m_Layer: 0
   m_Name: BankPanel
   m_TagString: Untagged
@@ -755,6 +755,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 733967574}
   m_CullTransparentMesh: 1
+--- !u!114 &733967578
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 733967574}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a4434c237e54134d9ae0b689385e418, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CariocaRuntime.DropZone
+  zoneType: 1
 --- !u!1 &882269171
 GameObject:
   m_ObjectHideFlags: 0
@@ -3173,7 +3186,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: AGREGAR A BANCA
+  m_text: DESCARTAR
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

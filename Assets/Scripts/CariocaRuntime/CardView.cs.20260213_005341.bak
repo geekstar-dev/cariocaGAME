@@ -1,9 +1,8 @@
-using System;
-using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using TMPro;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 namespace CariocaRuntime
 {
@@ -12,6 +11,7 @@ namespace CariocaRuntime
     {
         [Header("UI refs (optional)")]
         [SerializeField] private TextMeshProUGUI label;
+        [SerializeField] private Image background;
         [SerializeField] private GameObject glow;
 
         private RectTransform _rt;
@@ -19,11 +19,9 @@ namespace CariocaRuntime
         private Vector2 _homePos;
 
         private Card _card;
-        private Action<CardView> _onClick;
+        private System.Action<CardView> _onClick;
 
         private CardDragHandler _drag;
-
-        public Card Card => _card;
 
         private void Awake()
         {
@@ -38,7 +36,7 @@ namespace CariocaRuntime
             _drag.OnDragDelta += HandleDragDelta;
             _drag.OnEnd += HandleEndDrag;
 
-            if (_rt != null) _homePos = _rt.anchoredPosition;
+            _homePos = _rt.anchoredPosition;
 
             var btn = GetComponent<Button>();
             if (btn == null) btn = gameObject.AddComponent<Button>();
@@ -47,11 +45,9 @@ namespace CariocaRuntime
             btn.onClick.AddListener(() => _onClick?.Invoke(this));
         }
 
-        // ✅ Compatibilidad total (2/3/4 params)
-        public void Bind(Card card, Action<CardView> onClick) => Bind(card, onClick, false, false);
-        public void Bind(Card card, Action<CardView> onClick, bool selected) => Bind(card, onClick, selected, false);
+        public Card Card => _card;
 
-        public void Bind(Card card, Action<CardView> onClick, bool selected, bool hint)
+        public void Bind(Card card, System.Action<CardView> onClick, bool selected, bool hint)
         {
             _card = card;
             _onClick = onClick;
@@ -121,5 +117,17 @@ namespace CariocaRuntime
             }
             return zones;
         }
+    }
+
+    public static class CariocaDragBus
+    {
+        public struct DropInfo
+        {
+            public CardView view;
+            public DropZone zone;
+        }
+
+        public static DropInfo? LastDrop;
+        public static void Clear() => LastDrop = null;
     }
 }
