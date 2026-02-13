@@ -23,6 +23,29 @@ namespace CariocaRuntime
             Rank = rank;
         }
 
-        public override string ToString() => IsJoker ? "JOKER" : $"{Rank} of {Suit}";
+        public override string ToString()
+        {
+            if (IsJoker) return "JOKER";
+
+            string rankStr = Rank switch
+            {
+                Rank.Ace => "A",
+                Rank.Jack => "J",
+                Rank.Queen => "Q",
+                Rank.King => "K",
+                _ => ((int)Rank).ToString()
+            };
+
+            string suitStr = Suit switch
+            {
+                CariocaRuntime.Suit.Clubs => "♣",
+                CariocaRuntime.Suit.Diamonds => "♦",
+                CariocaRuntime.Suit.Hearts => "♥",
+                CariocaRuntime.Suit.Spades => "♠",
+                _ => ""
+            };
+
+            return $"{rankStr}{suitStr}";
+        }
     }
 }

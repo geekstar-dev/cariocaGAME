@@ -10,7 +10,7 @@ namespace CariocaRuntime
     [DisallowMultipleComponent]
     public sealed class CardView : MonoBehaviour
     {
-        [Header("UI refs (auto si no se asignan)")]
+        [Header("UI refs (optional)")]
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private GameObject glow;
 
@@ -28,18 +28,6 @@ namespace CariocaRuntime
         private void Awake()
         {
             _rt = GetComponent<RectTransform>();
-
-            // ✅ AUTO: si no está asignado por Inspector, lo buscamos
-            if (label == null)
-                label = GetComponentInChildren<TextMeshProUGUI>(true);
-
-            // ✅ AUTO: si no existe Glow asignado, intenta encontrar un hijo llamado "Glow"
-            if (glow == null)
-            {
-                var t = transform.Find("Glow");
-                if (t != null) glow = t.gameObject;
-            }
-
             _cg = GetComponent<CanvasGroup>();
             if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
 
@@ -59,7 +47,7 @@ namespace CariocaRuntime
             btn.onClick.AddListener(() => _onClick?.Invoke(this));
         }
 
-        // ✅ Overloads para compatibilidad
+        // Compatibilidad (2/3/4 parámetros)
         public void Bind(Card card, Action<CardView> onClick) => Bind(card, onClick, false, false);
         public void Bind(Card card, Action<CardView> onClick, bool selected) => Bind(card, onClick, selected, false);
 
@@ -68,16 +56,8 @@ namespace CariocaRuntime
             _card = card;
             _onClick = onClick;
 
-            // ✅ Si aun así no encuentra label, deja warning 1 sola vez por instancia
-            if (label == null)
-            {
-                Debug.LogWarning($"CardView sin TextMeshProUGUI en prefab: {name}. Agrega un TMP como hijo.");
-            }
-            else
-            {
-                // Esto SIEMPRE debe cambiar el texto del prefab (ya no quedará A♠ fijo)
+            if (label != null)
                 label.text = card.ToString();
-            }
 
             SetSelected(selected);
             SetHint(hint);
