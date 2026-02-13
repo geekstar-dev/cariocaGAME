@@ -1,28 +1,23 @@
 #if UNITY_EDITOR
 using System;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
-public static class Carioca_CleanAndFix_AllInOne
+public static class Carioca_ResetAndFix_OneClick
 {
-    private const string MenuPath = "Tools/CARIOCA/CLEAN + FIX (Delete Junk, Rebuild Core)";
-    private const string BackupRoot = "Assets/_CariocaTrashBackup";
+    private const string MenuPath = "Tools/CARIOCA/RESET + FIX (Clean backups, Fix Deck/Card, Remove junk)";
 
+    // Carpetas / rutas Unity
     private const string RuntimeDir = "Assets/Scripts/CariocaRuntime";
     private const string EditorDir  = "Assets/Editor";
 
-    private const string PrefabCardUIPath = "Assets/Prefabs/CardUI.prefab";
-    private const string SceneGameTablePath = "Assets/Scenes/GameTable.unity";
+    private const string TrashBackupInAssets = "Assets/_CariocaTrashBackup";
 
-    // Ajustado a lo que tú mismo has mostrado en consola
-    private static readonly string[] JunkEditorFiles =
+    // Scripts editor “problemáticos” típicos (ajusta si quieres, pero así está bien)
+    private static readonly string[] KnownJunkEditorScripts =
     {
         "Assets/Editor/Carioca_OneClickInstaller.cs",
         "Assets/Editor/Carioca_UXPatch_OneClick.cs",
@@ -32,18 +27,12 @@ public static class Carioca_CleanAndFix_AllInOne
         "Assets/Editor/Carioca_FixEverything_OneClick.cs",
     };
 
-    private static readonly string[] JunkRuntimeFiles =
-    {
-        "Assets/Scripts/CariocaRuntime/GameTableController.cs",
-        "Assets/Scripts/CariocaRuntime/GameTableControllerV3.cs",
-    };
-
     [MenuItem(MenuPath)]
     public static void Run()
     {
         if (EditorApplication.isPlaying)
         {
-            Debug.LogError("Sal de Play Mode antes de ejecutar CLEAN + FIX.");
+            Debug.LogError("Sal de Play Mode antes de ejecutar el RESET + FIX.");
             return;
         }
 
@@ -51,91 +40,78 @@ public static class Carioca_CleanAndFix_AllInOne
         {
             EnsureFolder(EditorDir);
             EnsureFolder(RuntimeDir);
-            EnsureFolder(BackupRoot);
 
-            // Backup folder con timestamp
+            // 1) Crear backup FUERA de Assets (para que Unity NO lo compile)
+            string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath;
             string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string backupDir = $"{BackupRoot}/{stamp}";
-            EnsureFolder(backupDir);
+            string externalBackupRoot = Path.Combine(projectRoot, $"_CariocaBackup_{stamp}");
+            Directory.CreateDirectory(externalBackupRoot);
 
-            // 1) Mover basura a backup
-            MoveToBackup(backupDir, JunkEditorFiles);
-            MoveToBackup(backupDir, JunkRuntimeFiles);
+            Debug.Log($"🧰 Backup externo: {externalBackupRoot}");
 
-            // 2) Escribir core estable (sobrescribe con backup previo)
-            WriteWithBackup(backupDir, $"{RuntimeDir}/Deck.cs", GetDeck_Stable_ForYourCardModel());
-            WriteWithBackup(backupDir, $"{RuntimeDir}/CardDragHandler.cs", GetCardDragHandler());
-            WriteWithBackup(backupDir, $"{RuntimeDir}/DropZone.cs", GetDropZone());
-            WriteWithBackup(backupDir, $"{RuntimeDir}/CariocaDragBus.cs", GetDragBus());
-            WriteWithBackup(backupDir, $"{RuntimeDir}/CardView.cs", GetCardViewStable());
+            // 2) Si existe Assets/_CariocaTrashBackup -> copiar afuera y borrar dentro de Assets
+            if (AssetDatabase.IsValidFolder(TrashBackupInAssets))
+            {
+                string absTrash = Path.Combine(projectRoot, "Assets", "_CariocaTrashBackup");
+                string destTrash = Path.Combine(externalBackupRoot, "_CariocaTrashBackup_FROM_ASSETS");
+                CopyDirectory(absTrash, destTrash);
+
+                AssetDatabase.DeleteAsset(TrashBackupInAssets);
+                Debug.Log("🧹 Eliminado Assets/_CariocaTrashBackup (esto era lo que Unity seguía compilando).");
+            }
+
+            // 3) Borrar .bak y “.cs.<timestamp>.bak” dentro de Assets/Scripts/CariocaRuntime
+            DeleteAllBakFiles(RuntimeDir);
+
+            // 4) Borrar scripts editor basura (opcional pero recomendado)
+            foreach (var p in KnownJunkEditorScripts)
+            {
+                if (File.Exists(p))
+                {
+                    string abs = Path.Combine(projectRoot, p.Replace("/", Path.DirectorySeparatorChar.ToString()));
+                    string dest = Path.Combine(externalBackupRoot, "DeletedEditorScripts");
+                    Directory.CreateDirectory(dest);
+
+                    File.Copy(abs, Path.Combine(dest, Path.GetFileName(abs)), true);
+                    string meta = abs + ".meta";
+                    if (File.Exists(meta)) File.Copy(meta, Path.Combine(dest, Path.GetFileName(meta)), true);
+
+                    AssetDatabase.DeleteAsset(p);
+                    Debug.Log($"🧹 Borrado junk editor: {p}");
+                }
+            }
+
+            // 5) Reescribir core estable (CardModel + Deck + Drag/Drop + CardView)
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/CardModel.cs", GetCardModelStable());
+
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/Deck.cs", GetDeckStable());
+
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/DropZone.cs", GetDropZoneStable());
+
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/CariocaDragBus.cs", GetDragBusStable());
+
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/CardDragHandler.cs", GetCardDragHandlerStable());
+
+            WriteTextWithExternalBackup(projectRoot, externalBackupRoot,
+                $"{RuntimeDir}/CardView.cs", GetCardViewStable());
 
             AssetDatabase.Refresh();
-
-            // 3) Parche Prefab
-            PatchCardUIPrefab();
-
-            // 4) Parche Scene
-            PatchGameTableScene();
-
             AssetDatabase.SaveAssets();
-            Debug.Log($"✅ CLEAN + FIX terminado.\nBackup guardado en: {backupDir}\nSi algo queda raro, puedes restaurar desde esa carpeta.");
+
+            Debug.Log("✅ RESET + FIX terminado. Ahora deja que Unity compile (arriba a la derecha). Luego dale Play.");
         }
         catch (Exception e)
         {
-            Debug.LogError("❌ CLEAN + FIX falló:\n" + e);
+            Debug.LogError("❌ RESET + FIX falló:\n" + e);
         }
     }
 
-    // ---------------------------
-    // Backup / move utilities
-    // ---------------------------
-    private static void MoveToBackup(string backupDir, string[] paths)
-    {
-        foreach (var path in paths)
-            MoveFileAndMeta(path, backupDir);
-    }
-
-    // ✅ IMPORTANTE: File.Move NO tiene overload con "overwrite" en tu runtime.
-    // Por eso te salía: "Move takes 3 arguments".
-    private static void MoveFileAndMeta(string assetPath, string backupDir)
-    {
-        if (!File.Exists(assetPath)) return;
-
-        string fileName = Path.GetFileName(assetPath);
-        string dest = $"{backupDir}/{fileName}";
-
-        if (File.Exists(dest)) File.Delete(dest);
-        File.Move(assetPath, dest);
-
-        string meta = assetPath + ".meta";
-        if (File.Exists(meta))
-        {
-            string metaDest = $"{backupDir}/{fileName}.meta";
-            if (File.Exists(metaDest)) File.Delete(metaDest);
-            File.Move(meta, metaDest);
-        }
-
-        Debug.Log($"🧹 Movido a backup: {assetPath}");
-    }
-
-    private static void WriteWithBackup(string backupDir, string path, string content)
-    {
-        string dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir)) EnsureFolder(dir);
-
-        if (File.Exists(path))
-        {
-            string fileName = Path.GetFileName(path);
-            File.Copy(path, $"{backupDir}/{fileName}.preoverwrite.bak", true);
-
-            string meta = path + ".meta";
-            if (File.Exists(meta))
-                File.Copy(meta, $"{backupDir}/{fileName}.meta.preoverwrite.bak", true);
-        }
-
-        File.WriteAllText(path, content, new UTF8Encoding(false));
-        Debug.Log($"✍️ Escrito: {path}");
-    }
+    // -------------------- helpers --------------------
 
     private static void EnsureFolder(string unityPath)
     {
@@ -152,260 +128,148 @@ public static class Carioca_CleanAndFix_AllInOne
         }
     }
 
-    // ---------------------------
-    // Prefab patch
-    // ---------------------------
-    private static void PatchCardUIPrefab()
+    private static void DeleteAllBakFiles(string unityFolder)
     {
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabCardUIPath);
-        if (prefab == null)
+        string[] guids = AssetDatabase.FindAssets("", new[] { unityFolder });
+        int deleted = 0;
+
+        foreach (var g in guids)
         {
-            Debug.LogWarning($"⚠️ No encontré prefab: {PrefabCardUIPath}. Saltando patch prefab.");
-            return;
-        }
+            string path = AssetDatabase.GUIDToAssetPath(g);
 
-        var root = PrefabUtility.LoadPrefabContents(PrefabCardUIPath);
-        bool dirty = false;
-
-        if (root.GetComponent<CanvasGroup>() == null)
-        {
-            root.AddComponent<CanvasGroup>();
-            dirty = true;
-        }
-
-        var dragType = TypeByName("CariocaRuntime.CardDragHandler");
-        if (dragType != null && root.GetComponent(dragType) == null)
-        {
-            root.AddComponent(dragType);
-            dirty = true;
-        }
-
-        // Glow overlay (si no existe)
-        if (root.transform.Find("Glow") == null)
-        {
-            var glowGo = new GameObject("Glow", typeof(RectTransform), typeof(Image));
-            glowGo.transform.SetParent(root.transform, false);
-
-            var rt = glowGo.GetComponent<RectTransform>();
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(6, 6);
-            rt.offsetMax = new Vector2(-6, -6);
-
-            var img = glowGo.GetComponent<Image>();
-            img.raycastTarget = false;
-            img.color = new Color(1f, 0.85f, 0.2f, 0.20f);
-
-            glowGo.SetActive(false);
-            dirty = true;
-        }
-
-        if (dirty)
-        {
-            PrefabUtility.SaveAsPrefabAsset(root, PrefabCardUIPath);
-            Debug.Log("✅ Prefab CardUI parcheado (CanvasGroup + Drag + Glow).");
-        }
-
-        PrefabUtility.UnloadPrefabContents(root);
-    }
-
-    // ---------------------------
-    // Scene patch
-    // ---------------------------
-    private static void PatchGameTableScene()
-    {
-        if (!File.Exists(SceneGameTablePath))
-        {
-            Debug.LogWarning($"⚠️ No encontré escena: {SceneGameTablePath}. Abre tu GameTable y vuelve a correr el fix.");
-            return;
-        }
-
-        var scene = EditorSceneManager.OpenScene(SceneGameTablePath, OpenSceneMode.Single);
-
-        // ✅ Unity 6: FindObjectsOfType está obsoleto (warning). Usamos FindObjectsByType (sin warning).
-        var allMB = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        // Desactivar cualquier controlador viejo (si quedó en la escena)
-        foreach (var mb in allMB)
-        {
-            if (mb == null) continue;
-            if (mb.GetType().Name == "GameTableController")
+            // Borra *.bak y también *.cs.<algo>.bak
+            if (path.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
             {
-                mb.enabled = false;
-                EditorUtility.SetDirty(mb);
-                Debug.Log("✅ Desactivé GameTableController (viejo).");
+                if (AssetDatabase.DeleteAsset(path)) deleted++;
             }
         }
 
-        // Asegurar que exista V2
-        var v2 = allMB.FirstOrDefault(m => m != null && m.GetType().FullName == "CariocaRuntime.GameTableControllerV2");
-        if (v2 == null)
+        Debug.Log($"🧹 Borrados {deleted} archivos .bak dentro de {unityFolder}");
+    }
+
+    private static void WriteTextWithExternalBackup(string projectRoot, string externalBackupRoot, string unityPath, string content)
+    {
+        string absPath = Path.Combine(projectRoot, unityPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+        Directory.CreateDirectory(Path.GetDirectoryName(absPath) ?? projectRoot);
+
+        // backup del archivo anterior (si existe)
+        if (File.Exists(absPath))
         {
-            var t = TypeByName("CariocaRuntime.GameTableControllerV2");
-            if (t == null)
+            string destDir = Path.Combine(externalBackupRoot, "OverwrittenFiles");
+            Directory.CreateDirectory(destDir);
+            File.Copy(absPath, Path.Combine(destDir, Path.GetFileName(absPath)), true);
+
+            string meta = absPath + ".meta";
+            if (File.Exists(meta))
+                File.Copy(meta, Path.Combine(destDir, Path.GetFileName(meta)), true);
+        }
+
+        File.WriteAllText(absPath, content, new UTF8Encoding(false));
+        Debug.Log($"✍️ Escrito: {unityPath}");
+    }
+
+    private static void CopyDirectory(string sourceDir, string destDir)
+    {
+        if (!Directory.Exists(sourceDir)) return;
+        Directory.CreateDirectory(destDir);
+
+        foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            string rel = file.Substring(sourceDir.Length).TrimStart('\\', '/');
+            string dst = Path.Combine(destDir, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(dst) ?? destDir);
+            File.Copy(file, dst, true);
+        }
+    }
+
+    // -------------------- stable code --------------------
+
+    private static string GetCardModelStable() => @"
+using System;
+
+namespace CariocaRuntime
+{
+    // ✅ Modelo estable (simple)
+    public enum Suit { Clubs, Diamonds, Hearts, Spades }
+
+    public enum Rank
+    {
+        Joker = 0,
+        Ace = 1, Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten,
+        Jack, Queen, King
+    }
+
+    public readonly struct Card
+    {
+        public readonly Suit? Suit;   // null = Joker
+        public readonly Rank Rank;
+
+        public bool IsJoker => Rank == Rank.Joker;
+
+        public Card(Suit? suit, Rank rank)
+        {
+            Suit = suit;
+            Rank = rank;
+        }
+
+        public override string ToString()
+        {
+            if (IsJoker) return ""JOKER"";
+
+            string rankStr = Rank switch
             {
-                Debug.LogWarning("⚠️ No encontré tipo GameTableControllerV2 (¿no compiló todavía?). Espera compile y re-ejecuta.");
-                return;
-            }
-            var go = new GameObject("GameTableControllerV2");
-            v2 = (MonoBehaviour)go.AddComponent(t);
-        }
+                Rank.Ace => ""A"",
+                Rank.Jack => ""J"",
+                Rank.Queen => ""Q"",
+                Rank.King => ""K"",
+                _ => ((int)Rank).ToString()
+            };
 
-        AutoAssignV2(v2);
-
-        // DropZones (intento por nombre)
-        var discardBtn = FindButtonByName("discard", "descarte");
-        if (discardBtn != null) EnsureDropZone(discardBtn.gameObject, "Discard");
-
-        var bankLayout = FindTransformByName("bank", "banca");
-        if (bankLayout != null) EnsureDropZone(bankLayout.gameObject, "Bank");
-
-        EditorSceneManager.MarkSceneDirty(scene);
-        EditorSceneManager.SaveScene(scene);
-
-        Debug.Log("✅ GameTable reparada (refs + DropZones).");
-    }
-
-    private static void AutoAssignV2(MonoBehaviour v2)
-    {
-        AssignField(v2, "deckButton", FindButtonByName("deck", "mazo"));
-        AssignField(v2, "discardButton", FindButtonByName("discard", "descarte"));
-        AssignField(v2, "handLayout", FindTransformByName("hand", "mano"));
-        AssignField(v2, "bankLayout", FindTransformByName("bank", "banca"));
-
-        AssignField(v2, "dropButton", FindButtonByName("drop", "bajar"));
-        AssignField(v2, "addButton", FindButtonByName("add", "agregar"));
-        AssignField(v2, "sortButton", FindButtonByName("sort", "ordenar"));
-
-        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabCardUIPath);
-        AssignField(v2, "cardPrefab", prefab);
-
-        EditorUtility.SetDirty(v2);
-    }
-
-    private static void EnsureDropZone(GameObject go, string zone)
-    {
-        var dzType = TypeByName("CariocaRuntime.DropZone");
-        if (dzType == null) return;
-
-        var dz = go.GetComponent(dzType) ?? go.AddComponent(dzType);
-
-        var f = dzType.GetField("zoneType");
-        if (f != null)
-        {
-            int val = zone == "Bank" ? 1 : 0; // Discard=0, Bank=1
-            f.SetValue(dz, Enum.ToObject(f.FieldType, val));
-        }
-
-        EditorUtility.SetDirty(go);
-    }
-
-    private static void AssignField(object obj, string fieldName, UnityEngine.Object value)
-    {
-        var f = obj.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-        if (f == null) return;
-
-        if (value != null && f.FieldType.IsAssignableFrom(value.GetType()))
-            f.SetValue(obj, value);
-        else if (value == null)
-            Debug.LogWarning($"⚠️ No pude auto-asignar {fieldName} (no encontré objeto por nombre).");
-    }
-
-    private static Button FindButtonByName(params string[] keys)
-    {
-        var buttons = UnityEngine.Object.FindObjectsByType<Button>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-
-        foreach (var k in keys)
-        {
-            // por nombre
-            var b = buttons.FirstOrDefault(x => x != null && x.name.ToLower().Contains(k));
-            if (b != null) return b;
-
-            // por texto TMP dentro del botón
-            var b2 = buttons.FirstOrDefault(x =>
+            string suitStr = Suit switch
             {
-                if (x == null) return false;
-                var tmp = x.GetComponentInChildren<TMPro.TextMeshProUGUI>(true);
-                if (!tmp) return false;
-                var t = (tmp.text ?? "").ToLower();
-                return t.Contains(k);
-            });
-            if (b2 != null) return b2;
+                CariocaRuntime.Suit.Clubs => ""♣"",
+                CariocaRuntime.Suit.Diamonds => ""♦"",
+                CariocaRuntime.Suit.Hearts => ""♥"",
+                CariocaRuntime.Suit.Spades => ""♠"",
+                _ => """"
+            };
+
+            return $""{rankStr}{suitStr}"";
         }
-
-        return null;
     }
+}
+".Trim();
 
-    private static Transform FindTransformByName(params string[] keys)
-    {
-        var all = UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        foreach (var k in keys)
-        {
-            var t = all.FirstOrDefault(x => x != null && x.name.ToLower().Contains(k));
-            if (t != null) return t;
-        }
-        return null;
-    }
-
-    private static Type TypeByName(string fullName)
-    {
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var t = asm.GetType(fullName);
-            if (t != null) return t;
-        }
-        return null;
-    }
-
-    // ---------------------------
-    // Stable core code
-    // ---------------------------
-
-    // ✅ Esto evita tus errores:
-    // - Suit.None no existe
-    // - el constructor de Card en tu proyecto está como (Suit? suit, Rank rank)
-    private static string GetDeck_Stable_ForYourCardModel() => @"
+    private static string GetDeckStable() => @"
 using System;
 using System.Collections.Generic;
 
 namespace CariocaRuntime
 {
+    // ✅ Deck estable: 52 + 2 jokers = 54
     public sealed class Deck
     {
-        private readonly List<Card> _cards = new();
-        private readonly Random _rng = new();
+        private readonly List<Card> _cards = new List<Card>();
+        private readonly System.Random _rng = new System.Random();
 
         public int Count => _cards.Count;
 
-        // ✅ Necesario para que Activator.CreateInstance no falle
+        // ✅ Constructor vacío (necesario)
         public Deck() { }
 
         public void Build54With2Jokers()
         {
             _cards.Clear();
 
-            // Si tu enum Suit tiene solo 4 palos (sin None), esto funciona perfecto.
-            // Si tuviera otros valores, filtramos para quedarnos con los 4 típicos.
             foreach (Suit suit in Enum.GetValues(typeof(Suit)))
             {
-                var name = suit.ToString().ToLower();
-                bool looksLikeRealSuit =
-                    name.Contains(""club"") || name.Contains(""diamond"") ||
-                    name.Contains(""heart"") || name.Contains(""spade"");
-
-                // Si detectamos nombres típicos, filtramos.
-                // Si tu enum se llama distinto, se dejará pasar igual.
-                if (!looksLikeRealSuit && Enum.GetValues(typeof(Suit)).Length > 4)
-                    continue;
-
                 for (int r = 1; r <= 13; r++)
                 {
                     var rank = (Rank)r;
-                    _cards.Add(new Card((Suit?)suit, rank));
+                    _cards.Add(new Card(suit, rank));
                 }
             }
 
-            // Jokers: suit = null
             _cards.Add(new Card(null, Rank.Joker));
             _cards.Add(new Card(null, Rank.Joker));
         }
@@ -415,41 +279,30 @@ namespace CariocaRuntime
             for (int i = _cards.Count - 1; i > 0; i--)
             {
                 int j = _rng.Next(i + 1);
-                (_cards[i], _cards[j]) = (_cards[j], _cards[i]);
+                var tmp = _cards[i];
+                _cards[i] = _cards[j];
+                _cards[j] = tmp;
             }
         }
 
         public Card Draw()
         {
             if (_cards.Count == 0) throw new InvalidOperationException(""Deck vacío"");
-            var top = _cards[^1];
-            _cards.RemoveAt(_cards.Count - 1);
+            int last = _cards.Count - 1;
+            var top = _cards[last];
+            _cards.RemoveAt(last);
             return top;
         }
 
-        public void AddRange(IEnumerable<Card> cards) => _cards.AddRange(cards);
-    }
-}
-".Trim();
-
-    private static string GetDragBus() => @"
-namespace CariocaRuntime
-{
-    public static class CariocaDragBus
-    {
-        public struct DropInfo
+        public void AddRange(IEnumerable<Card> cards)
         {
-            public CardView view;
-            public DropZone zone;
+            _cards.AddRange(cards);
         }
-
-        public static DropInfo? LastDrop;
-        public static void Clear() => LastDrop = null;
     }
 }
 ".Trim();
 
-    private static string GetDropZone() => @"
+    private static string GetDropZoneStable() => @"
 using UnityEngine;
 
 namespace CariocaRuntime
@@ -463,7 +316,25 @@ namespace CariocaRuntime
 }
 ".Trim();
 
-    private static string GetCardDragHandler() => @"
+    private static string GetDragBusStable() => @"
+namespace CariocaRuntime
+{
+    public static class CariocaDragBus
+    {
+        public struct DropInfo
+        {
+            public CardView view;
+            public DropZone zone;
+        }
+
+        public static DropInfo? LastDrop;
+
+        public static void Clear() => LastDrop = null;
+    }
+}
+".Trim();
+
+    private static string GetCardDragHandlerStable() => @"
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -484,7 +355,10 @@ namespace CariocaRuntime
             _canvas = GetComponentInParent<Canvas>();
         }
 
-        public void OnBeginDrag(PointerEventData eventData) => OnBegin?.Invoke();
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            OnBegin?.Invoke();
+        }
 
         public void OnDrag(PointerEventData eventData)
         {
@@ -493,7 +367,10 @@ namespace CariocaRuntime
             OnDragDelta?.Invoke(delta);
         }
 
-        public void OnEndDrag(PointerEventData eventData) => OnEnd?.Invoke(eventData);
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            OnEnd?.Invoke(eventData);
+        }
     }
 }
 ".Trim();
@@ -511,7 +388,7 @@ namespace CariocaRuntime
     [DisallowMultipleComponent]
     public sealed class CardView : MonoBehaviour
     {
-        [Header(""UI refs (optional)"")]
+        [Header(""UI refs (auto si no se asignan)"")]
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private GameObject glow;
 
@@ -529,8 +406,18 @@ namespace CariocaRuntime
         private void Awake()
         {
             _rt = GetComponent<RectTransform>();
+
+            if (label == null)
+                label = GetComponentInChildren<TextMeshProUGUI>(true);
+
+            if (glow == null)
+            {
+                var t = transform.Find(""Glow"");
+                if (t != null) glow = t.gameObject;
+            }
+
             _cg = GetComponent<CanvasGroup>();
-            if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
+            if (_cg == null) _cg = gameObject.AddComponent<CanvasGroup>();
 
             _drag = GetComponent<CardDragHandler>();
             if (_drag == null) _drag = gameObject.AddComponent<CardDragHandler>();
@@ -548,7 +435,7 @@ namespace CariocaRuntime
             btn.onClick.AddListener(() => _onClick?.Invoke(this));
         }
 
-        // ✅ Overloads para que NO se rompan scripts viejos
+        // ✅ Overloads para compatibilidad
         public void Bind(Card card, Action<CardView> onClick) => Bind(card, onClick, false, false);
         public void Bind(Card card, Action<CardView> onClick, bool selected) => Bind(card, onClick, selected, false);
 

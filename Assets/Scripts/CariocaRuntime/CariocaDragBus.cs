@@ -9,6 +9,7 @@ namespace CariocaRuntime
         }
 
         public static DropInfo? LastDrop;
+
         public static void Clear() => LastDrop = null;
     }
 }

@@ -18,7 +18,10 @@ namespace CariocaRuntime
             _canvas = GetComponentInParent<Canvas>();
         }
 
-        public void OnBeginDrag(PointerEventData eventData) => OnBegin?.Invoke();
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            OnBegin?.Invoke();
+        }
 
         public void OnDrag(PointerEventData eventData)
         {
@@ -27,6 +30,9 @@ namespace CariocaRuntime
             OnDragDelta?.Invoke(delta);
         }
 
-        public void OnEndDrag(PointerEventData eventData) => OnEnd?.Invoke(eventData);
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            OnEnd?.Invoke(eventData);
+        }
     }
 }

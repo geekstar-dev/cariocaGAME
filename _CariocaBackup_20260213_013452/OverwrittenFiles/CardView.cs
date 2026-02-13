@@ -1,17 +1,17 @@
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
-using UnityEngine.EventSystems;
+using System;
 using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace CariocaRuntime
 {
     [DisallowMultipleComponent]
     public sealed class CardView : MonoBehaviour
     {
-        [Header("UI refs (optional)")]
+        [Header("UI refs (auto si no se asignan)")]
         [SerializeField] private TextMeshProUGUI label;
-        [SerializeField] private Image background;
         [SerializeField] private GameObject glow;
 
         private RectTransform _rt;
@@ -19,13 +19,27 @@ namespace CariocaRuntime
         private Vector2 _homePos;
 
         private Card _card;
-        private System.Action<CardView> _onClick;
+        private Action<CardView> _onClick;
 
         private CardDragHandler _drag;
+
+        public Card Card => _card;
 
         private void Awake()
         {
             _rt = GetComponent<RectTransform>();
+
+            // ✅ AUTO: si no está asignado por Inspector, lo buscamos
+            if (label == null)
+                label = GetComponentInChildren<TextMeshProUGUI>(true);
+
+            // ✅ AUTO: si no existe Glow asignado, intenta encontrar un hijo llamado "Glow"
+            if (glow == null)
+            {
+                var t = transform.Find("Glow");
+                if (t != null) glow = t.gameObject;
+            }
+
             _cg = GetComponent<CanvasGroup>();
             if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
 
@@ -36,8 +50,7 @@ namespace CariocaRuntime
             _drag.OnDragDelta += HandleDragDelta;
             _drag.OnEnd += HandleEndDrag;
 
-            if (_rt != null)
-                _homePos = _rt.anchoredPosition;
+            if (_rt != null) _homePos = _rt.anchoredPosition;
 
             var btn = GetComponent<Button>();
             if (btn == null) btn = gameObject.AddComponent<Button>();
@@ -46,29 +59,30 @@ namespace CariocaRuntime
             btn.onClick.AddListener(() => _onClick?.Invoke(this));
         }
 
-        public Card Card => _card;
+        // ✅ Overloads para compatibilidad
+        public void Bind(Card card, Action<CardView> onClick) => Bind(card, onClick, false, false);
+        public void Bind(Card card, Action<CardView> onClick, bool selected) => Bind(card, onClick, selected, false);
 
-        // ✅ Compatibilidad: versión antigua (3 parámetros)
-        // Así NO se rompen scripts viejos como GameTableController.cs
-        public void Bind(Card card, System.Action<CardView> onClick, bool selected)
-        {
-            Bind(card, onClick, selected, false);
-        }
-
-        // ✅ Versión nueva (4 parámetros) con hint/glow
-        public void Bind(Card card, System.Action<CardView> onClick, bool selected, bool hint)
+        public void Bind(Card card, Action<CardView> onClick, bool selected, bool hint)
         {
             _card = card;
             _onClick = onClick;
 
-            if (label != null)
-                label.text = card.IsJoker ? "JOKER" : card.ToString();
+            // ✅ Si aun así no encuentra label, deja warning 1 sola vez por instancia
+            if (label == null)
+            {
+                Debug.LogWarning($"CardView sin TextMeshProUGUI en prefab: {name}. Agrega un TMP como hijo.");
+            }
+            else
+            {
+                // Esto SIEMPRE debe cambiar el texto del prefab (ya no quedará A♠ fijo)
+                label.text = card.ToString();
+            }
 
             SetSelected(selected);
             SetHint(hint);
 
-            if (_rt != null)
-                _homePos = _rt.anchoredPosition;
+            if (_rt != null) _homePos = _rt.anchoredPosition;
         }
 
         public void SetSelected(bool selected)
@@ -127,17 +141,5 @@ namespace CariocaRuntime
             }
             return zones;
         }
-    }
-
-    public static class CariocaDragBus
-    {
-        public struct DropInfo
-        {
-            public CardView view;
-            public DropZone zone;
-        }
-
-        public static DropInfo? LastDrop;
-        public static void Clear() => LastDrop = null;
     }
 }

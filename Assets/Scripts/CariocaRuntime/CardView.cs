@@ -29,11 +29,9 @@ namespace CariocaRuntime
         {
             _rt = GetComponent<RectTransform>();
 
-            // ✅ AUTO: si no está asignado por Inspector, lo buscamos
             if (label == null)
                 label = GetComponentInChildren<TextMeshProUGUI>(true);
 
-            // ✅ AUTO: si no existe Glow asignado, intenta encontrar un hijo llamado "Glow"
             if (glow == null)
             {
                 var t = transform.Find("Glow");
@@ -41,7 +39,7 @@ namespace CariocaRuntime
             }
 
             _cg = GetComponent<CanvasGroup>();
-            if (!_cg) _cg = gameObject.AddComponent<CanvasGroup>();
+            if (_cg == null) _cg = gameObject.AddComponent<CanvasGroup>();
 
             _drag = GetComponent<CardDragHandler>();
             if (_drag == null) _drag = gameObject.AddComponent<CardDragHandler>();
@@ -68,16 +66,8 @@ namespace CariocaRuntime
             _card = card;
             _onClick = onClick;
 
-            // ✅ Si aun así no encuentra label, deja warning 1 sola vez por instancia
-            if (label == null)
-            {
-                Debug.LogWarning($"CardView sin TextMeshProUGUI en prefab: {name}. Agrega un TMP como hijo.");
-            }
-            else
-            {
-                // Esto SIEMPRE debe cambiar el texto del prefab (ya no quedará A♠ fijo)
+            if (label != null)
                 label.text = card.ToString();
-            }
 
             SetSelected(selected);
             SetHint(hint);

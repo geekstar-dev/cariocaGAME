@@ -3,42 +3,30 @@ using System.Collections.Generic;
 
 namespace CariocaRuntime
 {
+    // ✅ Deck estable: 52 + 2 jokers = 54
     public sealed class Deck
     {
-        private readonly List<Card> _cards = new();
-        private readonly Random _rng = new();
+        private readonly List<Card> _cards = new List<Card>();
+        private readonly System.Random _rng = new System.Random();
 
         public int Count => _cards.Count;
 
-        // ✅ Necesario para que Activator.CreateInstance no falle
+        // ✅ Constructor vacío (necesario)
         public Deck() { }
 
         public void Build54With2Jokers()
         {
             _cards.Clear();
 
-            // Si tu enum Suit tiene solo 4 palos (sin None), esto funciona perfecto.
-            // Si tuviera otros valores, filtramos para quedarnos con los 4 típicos.
             foreach (Suit suit in Enum.GetValues(typeof(Suit)))
             {
-                var name = suit.ToString().ToLower();
-                bool looksLikeRealSuit =
-                    name.Contains("club") || name.Contains("diamond") ||
-                    name.Contains("heart") || name.Contains("spade");
-
-                // Si detectamos nombres típicos, filtramos.
-                // Si tu enum se llama distinto, se dejará pasar igual.
-                if (!looksLikeRealSuit && Enum.GetValues(typeof(Suit)).Length > 4)
-                    continue;
-
                 for (int r = 1; r <= 13; r++)
                 {
                     var rank = (Rank)r;
-                    _cards.Add(new Card((Suit?)suit, rank));
+                    _cards.Add(new Card(suit, rank));
                 }
             }
 
-            // Jokers: suit = null
             _cards.Add(new Card(null, Rank.Joker));
             _cards.Add(new Card(null, Rank.Joker));
         }
@@ -48,18 +36,24 @@ namespace CariocaRuntime
             for (int i = _cards.Count - 1; i > 0; i--)
             {
                 int j = _rng.Next(i + 1);
-                (_cards[i], _cards[j]) = (_cards[j], _cards[i]);
+                var tmp = _cards[i];
+                _cards[i] = _cards[j];
+                _cards[j] = tmp;
             }
         }
 
         public Card Draw()
         {
             if (_cards.Count == 0) throw new InvalidOperationException("Deck vacío");
-            var top = _cards[^1];
-            _cards.RemoveAt(_cards.Count - 1);
+            int last = _cards.Count - 1;
+            var top = _cards[last];
+            _cards.RemoveAt(last);
             return top;
         }
 
-        public void AddRange(IEnumerable<Card> cards) => _cards.AddRange(cards);
+        public void AddRange(IEnumerable<Card> cards)
+        {
+            _cards.AddRange(cards);
+        }
     }
 }

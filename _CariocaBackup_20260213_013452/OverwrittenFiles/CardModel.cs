@@ -2,9 +2,7 @@ using System;
 
 namespace CariocaRuntime
 {
-    // ✅ Modelo estable (simple)
     public enum Suit { Clubs, Diamonds, Hearts, Spades }
-
     public enum Rank
     {
         Joker = 0,
@@ -14,7 +12,7 @@ namespace CariocaRuntime
 
     public readonly struct Card
     {
-        public readonly Suit? Suit;   // null = Joker
+        public readonly Suit? Suit;   // null si Joker
         public readonly Rank Rank;
 
         public bool IsJoker => Rank == Rank.Joker;
